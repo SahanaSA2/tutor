@@ -1,6 +1,7 @@
 """Student learning endpoints run a fixed number of queries however much content or history exists (Q2)."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.utils import timezone
 
@@ -9,6 +10,8 @@ from apps.assessment.models import Question, QuestionVersion
 from apps.catalogue.models import Lesson, Skill
 from apps.commerce.models import Entitlement
 from apps.core.testing import QueryBudgetMixin
+from apps.learning import planner
+from apps.learning.access import entitled_course_ids
 from apps.learning.models import LessonProgress
 from apps.learning.planner import streak_days
 
@@ -88,6 +91,36 @@ class LearningQueryTests(QueryBudgetMixin, LoopBase):
             budget=16,
         )
 
+    def test_today_calculates_entitlements_once(self):
+        with patch(
+            "apps.learning.api.entitled_course_ids",
+            wraps=entitled_course_ids,
+        ) as entitlement_lookup:
+            response = self.client.get("/api/v1/student/today")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        entitlement_lookup.assert_called_once_with(self.student)
+
+    def test_shared_entitlements_reduce_planner_queries(self):
+        self.take_quiz("what-is-data")
+
+        def original_approach():
+            planner.next_lesson(self.student)
+            planner.review_item(self.student)
+
+        def optimized_approach():
+            course_ids = entitled_course_ids(self.student)
+            planner.next_lesson(self.student, course_ids=course_ids)
+            planner.review_item(self.student, course_ids=course_ids)
+
+        original_count, _, _ = self.count_queries(original_approach)
+        optimized_count, _, _ = self.count_queries(optimized_approach)
+
+        self.assertLess(
+            optimized_count,
+            original_count,
+            f"Expected fewer queries, but original={original_count}, optimized={optimized_count}",
+        )
     def test_record(self):
         self.take_quiz("what-is-data")
         self.assertQueriesDoNotGrow(
