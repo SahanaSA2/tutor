@@ -1,5 +1,4 @@
 """Student learning endpoints run a fixed number of queries however much content or history exists (Q2)."""
-
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -14,8 +13,8 @@ from apps.learning import planner
 from apps.learning.access import entitled_course_ids
 from apps.learning.models import LessonProgress
 from apps.learning.planner import streak_days
-
 from .tests import LoopBase, post
+
 
 WRONG = {"what-is-data": [0, 1, 0], "learning-from-examples": [0, 0, 0], "is-the-model-any-good": [0, 0, 0]}
 
@@ -121,6 +120,7 @@ class LearningQueryTests(QueryBudgetMixin, LoopBase):
             original_count,
             f"Expected fewer queries, but original={original_count}, optimized={optimized_count}",
         )
+
     def test_record(self):
         self.take_quiz("what-is-data")
         self.assertQueriesDoNotGrow(
